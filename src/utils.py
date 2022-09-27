@@ -1,3 +1,8 @@
+from starkware.starknet.compiler.compile import get_selector_from_name as starkware_get_selector_from_name
+
+def get_selector_from_name(name):
+    return starkware_get_selector_from_name(name)
+
 def str_to_felt(text):
     b_text = bytes(text, "ascii")
     return int.from_bytes(b_text, "big")
