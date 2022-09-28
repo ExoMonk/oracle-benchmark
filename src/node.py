@@ -14,6 +14,7 @@ class NodeRequester:
             if isinstance(kwargs[arg], dict):
                 kwargs[arg] = self.__deep_merge(getattr(self.session, arg), kwargs[arg])
             setattr(self.session, arg, kwargs[arg])
+        self.headers = {"Content-Type": "application/json"}
         self.base_request_data = {"jsonrpc":"2.0", "id":1, "method":"", "params":[]}
         
     def get_request_data(self, method, params):
@@ -31,7 +32,7 @@ class NodeRequester:
         else:
             data = json.dumps(params)
         
-        return self.session.post(self.base_url+url, data=data, **kwargs)
+        return self.session.post(self.base_url+url, data=data, headers=self.headers, **kwargs)
 
     @staticmethod
     def __deep_merge(source, destination):
