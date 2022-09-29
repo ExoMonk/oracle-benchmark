@@ -117,6 +117,10 @@ def normalize_submit_many_entry(data):
     except:
         return None
 
-def filter_feeds(feeds, feed_data):
-    for feed in feeds:
-        yield list(filter(lambda f: f['feed'] == feed, feed_data))
+def filter_feeds(feed, feed_data):
+    return list(filter(lambda f: f['feed'] == feed, feed_data))
+
+def combine_pair(feed_data):
+    luna_usd_feed = [entry['price'] for entry in filter_feeds('luna/usd', feed_data)]
+    eth_usd_feed = [entry['price'] for entry in filter_feeds('eth/usd', feed_data)]
+    return [luna_price / eth_price for luna_price, eth_price in zip(luna_usd_feed, eth_usd_feed)]

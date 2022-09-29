@@ -1,5 +1,5 @@
 from src.node import NodeRequester
-from src.utils import get_selector_from_name, hex_string_to_decimal, DataParser, normalize_submit_many_entry, filter_feeds
+from src.utils import get_selector_from_name, hex_string_to_decimal, DataParser, normalize_submit_many_entry, combine_pair
 from ctc.protocols import chainlink_utils
 from ctc.config import get_data_dir
 from os.path import exists
@@ -76,16 +76,16 @@ class EmpiricNetworkLoader:
             axis=1
         )
         self.price_feeds = self.raw_transactions[["parsed_calldata", "timestamp"]]
-        self.price_feeds['normalized_calldata'] = self.price_feeds.apply(
+        self.price_feeds['normalized_entry'] = self.price_feeds.apply(
             lambda row: normalize_submit_many_entry(row['parsed_calldata'].data),
             axis=1
         )
-        self.price_feeds.dropna(subset=['normalized_calldata'], inplace=True)
+        self.price_feeds.dropna(subset=['normalized_entry'], inplace=True)
         self.price_feeds['price'] = self.price_feeds.apply(
-            lambda row: median([entry['price'] for entry in next(filter_feeds(['luna/usd'], row['normalized_calldata']))]),
+            lambda row: median(combine_pair(row['normalized_entry'])),
             axis=1
         )
-        self.price_feeds['feed'] = 'luna/usd'
+        self.price_feeds['feed'] = 'luna/eth'
         self.price_feeds = self.price_feeds[['timestamp', 'price', 'feed']]
 
 
@@ -98,6 +98,7 @@ class ChainLinkLoader:
     ETH_ENDING_BLOCK = 14850893
 
     CHAINLINK_LUNA_FEED = "0x91e9331556ed76c9393055719986409e11b56f73"
+    #CHAINLINK_ETH_FEED = "0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419"
     CHAINLINK_DATA_DIR = f'{get_data_dir()}/evm/networks/mainnet/events'
 
     async def __new__(cls, *a, **kw):
@@ -116,7 +117,7 @@ class ChainLinkLoader:
 
     async def _initialize(self):
         try:
-            data = await chainlink_utils.async_get_feed_data(self.CHAINLINK_LUNA_FEED, start_block=self.ETH_STARTING_BLOCK, end_block=self.ETH_ENDING_BLOCK)
+            await chainlink_utils.async_get_feed_data(self.CHAINLINK_LUNA_FEED, start_block=self.ETH_STARTING_BLOCK, end_block=self.ETH_ENDING_BLOCK)
         except:
             pass
 
