@@ -1,8 +1,9 @@
 from src.node import NodeRequester
-from src.utils import get_selector_from_name, hex_string_to_decimal
+from src.utils import get_selector_from_name, hex_string_to_decimal, DataParser, normalize_submit_many_entry, filter_feeds
 from ctc.protocols import chainlink_utils
 from ctc.config import get_data_dir
 from os.path import exists
+from statistics import median
 import pandas as pd
 import os
 import json
@@ -22,11 +23,13 @@ class EmpiricNetworkLoader:
         self.sequencer_requester = NodeRequester(os.environ.get('STARKNET_SEQUENCER_URL'))
         self.node_requester = NodeRequester(os.environ.get('STARKNET_NODE_URL'))
         self.raw_transactions = pd.DataFrame()
+        self.price_feeds = pd.DataFrame()
         file_exists = exists(self.EMPIRIC_DATA_FILE)
         if file_exists:
             self._load()
         else:
             self._initialize()
+        self._format_feeds()
 
     def _initialize(self):
         for block_number in range(self.STARKNET_STARTING_BLOCK, self.STARKNET_ENDING_BLOCK):
@@ -52,6 +55,39 @@ class EmpiricNetworkLoader:
     def _load(self):
         self.raw_transactions = pd.read_csv(self.EMPIRIC_DATA_FILE, index_col=0)
 
+    def _format_feeds(self):
+        abi = None
+        with open('src/abi/empiric_abi.json', 'r+') as f:
+            abi = json.loads(f.read())
+        struct_abi = list(filter(lambda x: x['type'] == "struct", abi))
+        functions_abi = list(filter(lambda x: x['type'] == "function", abi))
+        functions_abi = [dict(func, **{'keys': [get_selector_from_name(func['name'])]}) for func in functions_abi]
+
+        self.raw_transactions['function_info'] = self.raw_transactions.apply(
+            lambda row: list(filter(lambda x: x['keys'][0] == int(row['entry_point_selector'], 16), functions_abi))[0], 
+            axis=1
+        )
+        self.raw_transactions['calldata'] = self.raw_transactions.apply(
+            lambda row: eval(row['calldata']),
+            axis=1
+        )
+        self.raw_transactions['parsed_calldata'] = self.raw_transactions.apply(
+            lambda row: DataParser(row['function_info']['name'], row['calldata'], row['function_info']['inputs'], struct_abi),
+            axis=1
+        )
+        self.price_feeds = self.raw_transactions[["parsed_calldata", "timestamp"]]
+        self.price_feeds['normalized_calldata'] = self.price_feeds.apply(
+            lambda row: normalize_submit_many_entry(row['parsed_calldata'].data),
+            axis=1
+        )
+        self.price_feeds.dropna(subset=['normalized_calldata'], inplace=True)
+        self.price_feeds['price'] = self.price_feeds.apply(
+            lambda row: median([entry['price'] for entry in next(filter_feeds(['luna/usd'], row['normalized_calldata']))]),
+            axis=1
+        )
+        self.price_feeds['feed'] = 'luna/usd'
+        self.price_feeds = self.price_feeds[['timestamp', 'price', 'feed']]
+
 
 class ChainLinkLoader:
     """
@@ -70,7 +106,7 @@ class ChainLinkLoader:
         return instance
 
     async def __init__(self):
-        self.price_feed = pd.DataFrame()
+        self.price_feeds = pd.DataFrame()
         self.raw_transactions = pd.DataFrame()
         self._load()
         if self.raw_transactions.empty:
@@ -98,5 +134,6 @@ class ChainLinkLoader:
             pass
 
     def _format(self):
-        self.transactions['price'] = self.raw_transactions['arg__current'] / 10 ** 18
-        self.transactions['timestamp'] = self.raw_transactions['arg__updatedAt']
+        self.price_feeds['price'] = self.raw_transactions['arg__current'] / 10 ** 18
+        self.price_feeds['timestamp'] = self.raw_transactions['arg__updatedAt']
+        self.price_feeds['feed'] = 'luna/eth'
