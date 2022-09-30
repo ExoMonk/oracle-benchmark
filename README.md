@@ -45,4 +45,6 @@ ctc setup
    > set data dir as ~/<PATHTOREPOSITORY>/oracle-benchmark/data/chainlink
 ```
 
-Voilà
+## Results
+
+Results are observable in `notebook.ipynb`
