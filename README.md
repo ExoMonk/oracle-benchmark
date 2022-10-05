@@ -8,7 +8,7 @@ L1-L2 Oracle Benchmark
 
 Compare Empiric and Chainlink’s performance during a period of high stress: when Luna was crashing.
 
-## Output
+## Output 
 
 Code that pulls this data from public blockchains in a verifiable way.
 A jupyter notebook using the cleaned data as input and comparing the performances with Kaiko (or some other source) as the benchmark. 
