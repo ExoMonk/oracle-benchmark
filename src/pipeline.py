@@ -7,6 +7,7 @@ from statistics import median
 import pandas as pd
 import os
 import json
+import time
 
 
 class EmpiricNetworkLoader:
@@ -87,6 +88,7 @@ class EmpiricNetworkLoader:
         )
         self.price_feeds['feed'] = 'luna/eth'
         self.price_feeds = self.price_feeds[['timestamp', 'price', 'feed']]
+        self.price_feeds['date'] = pd.to_datetime(self.price_feeds['timestamp'], unit='s')
 
 
 class ChainLinkLoader:
@@ -138,3 +140,36 @@ class ChainLinkLoader:
         self.price_feeds['price'] = self.raw_transactions['arg__current'] / 10 ** 18
         self.price_feeds['timestamp'] = self.raw_transactions['arg__updatedAt']
         self.price_feeds['feed'] = 'luna/eth'
+        self.price_feeds['date'] = pd.to_datetime(self.price_feeds['timestamp'], unit='s')
+
+
+class KaikoLoader:
+    
+    KAIKO_REQUEST = 'https://us.market-api.kaiko.io/v2/data/trades.v1/spot_direct_exchange_rate/luna/eth?include_exchanges=gmni,ftxx,bnce,cbse,bfnx&sources=true&start_time=2022-05-06T00:00:10Z&end_time=2022-05-26T00:00:10Z&interval=1h&page_size=100'
+
+    def __init__(self):
+        self.header = {
+            'Accept': 'application/json',
+            'Connection': 'keep-alive',
+            'X-Api-Key': os.environ.get('KAIKO_API_KEY')
+        }
+        self.kaiko_requester = NodeRequester(self.KAIKO_REQUEST)
+        self.data = pd.DataFrame()
+        self._load()
+        self.data = self.data.dropna(subset=['price'])
+        self.data['date'] = pd.to_datetime(self.data['timestamp'], unit='ms')
+        self.data['price'] =pd.to_numeric(self.data['price'])
+
+    def _load(self):
+        while True:
+            request = self.kaiko_requester.get(url="", headers=self.header) 
+            if request.status_code != 200 or "error" in request.text:
+                print(request.text)
+                time.sleep(2)
+                continue
+            request= json.loads(request.text)
+            self.data = pd.concat([self.data, pd.DataFrame(request['data'])], ignore_index=True)
+            if request.get('next_url'):
+                self.kaiko_requester = NodeRequester(request['next_url'])
+            else:
+                return
