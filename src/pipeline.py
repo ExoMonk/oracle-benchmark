@@ -145,15 +145,21 @@ class ChainLinkLoader:
 
 class KaikoLoader:
     
-    KAIKO_REQUEST = 'https://us.market-api.kaiko.io/v2/data/trades.v1/spot_direct_exchange_rate/luna/eth?include_exchanges=gmni,ftxx,bnce,cbse,bfnx&sources=true&start_time=2022-05-06T00:00:10Z&end_time=2022-05-26T00:00:10Z&interval=1h&page_size=100'
-
-    def __init__(self):
+    KAIKO_REQUEST = 'https://us.market-api.kaiko.io/v2/data/trades.v1/spot_direct_exchange_rate/luna/eth?include_exchanges=usp2,usp3,inch,curv,sush,ftxx,bnce,cbse,bfnx&sources=true&start_time=2022-05-06T00:00:10Z&end_time=2022-05-26T00:00:10Z&interval=1h&page_size=100'
+    KAIKO_REQUEST_DEX = 'https://us.market-api.kaiko.io/v2/data/trades.v1/spot_direct_exchange_rate/luna/eth?start_time=2022-05-06T00:00:10Z&end_time=2022-05-26T00:00:10Z&interval=1h&page_size=1000'
+    
+    def __init__(self, exchange_type="CEX"):
         self.header = {
             'Accept': 'application/json',
             'Connection': 'keep-alive',
             'X-Api-Key': os.environ.get('KAIKO_API_KEY')
         }
-        self.kaiko_requester = NodeRequester(self.KAIKO_REQUEST)
+        if exchange_type == "CEX":
+            self.kaiko_requester = NodeRequester(self.KAIKO_REQUEST)
+        elif exchange_type == "DEX":
+            self.kaiko_requester = NodeRequester(self.KAIKO_REQUEST_DEX)
+        else:
+            self.kaiko_requester = NodeRequester(self.KAIKO_REQUEST_DEX)
         self.data = pd.DataFrame()
         self._load()
         self.data = self.data.dropna(subset=['price'])
